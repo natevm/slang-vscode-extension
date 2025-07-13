@@ -58,6 +58,16 @@
                 "command": "slang.playgroundDocumentation",
                 "title": "Show Playground Documentation",
                 "category": "Slang"
+            },
+            {
+                "command": "slang.debug.testClientCommunication",
+                "title": "Test Client Communication",
+                "category": "Slang Debug"
+            },
+            {
+                "command": "slang.debug.testServerCommunication",
+                "title": "Test Server Communication",
+                "category": "Slang Debug"
             }
         ],
         "menus": {

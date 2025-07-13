@@ -242,4 +242,24 @@ type WorkerRequest = {
 	type: 'slang/entrypoints',
 	sourceCode: string,
 	shaderPath: string
+} | {
+	type: 'slang/debug/testServerLogs'
+} | {
+	type: 'slang/actionResponse',
+	notificationId: string,
+	action: string
+};
+
+// Message types from server to client
+export type ServerMessage = {
+	type: 'log',
+	level: 'info' | 'warning' | 'error',
+	message: string,
+	details?: string
+} | {
+	type: 'notification',
+	level: 'info' | 'warning' | 'error',
+	message: string,
+	actions?: string[],
+	notificationId?: string  // Optional ID to track which notification was responded to
 };

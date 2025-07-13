@@ -48,3 +48,28 @@ You can also run and debug the extension in a browser
 
 - `npm run chrome`
 - use browser dev tools to set breakpoints
+
+## Run Web vs Run Native
+
+In launch.json, there are two options:  `Run Web Extension` and `Run Native Extension`, the key difference 
+being the `--extensionDevelopmentKind=web` argument:
+
+### Run Web Extension
+
+  - Includes `--extensionDevelopmentKind=web` argument
+  - Forces VS Code to load the extension as a web extension (browser environment)
+  - Uses the browser entry point: client/dist/browserClientMain.js
+  - Runs in a sandboxed web worker environment
+  - No access to Node.js APIs or native file system
+  - Uses browserServerMain.ts for the language server
+
+### Run Native Extension
+
+  - No extensionDevelopmentKind argument (defaults to native)
+  - Loads the extension as a desktop extension (Node.js environment)
+  - Uses the main entry point: client/dist/nativeClientMain.js
+  - Full access to Node.js APIs and file system
+  - Uses nativeServerMain.ts for the language server
+
+This dual configuration allows testing the extension in both environments, ensuring it works correctly whether
+users are running VS Code desktop or VS Code for Web (vscode.dev).

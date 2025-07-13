@@ -2,7 +2,7 @@ import { ExtensionContext, Uri, commands, window, workspace } from 'vscode';
 import * as vscode from 'vscode';
 
 let slangLogChannel: vscode.OutputChannel | undefined;
-function getSlangLogChannel(): vscode.OutputChannel {
+export function getSlangLogChannel(): vscode.OutputChannel {
 	if (!slangLogChannel) {
 		slangLogChannel = vscode.window.createOutputChannel('Slang Extension Log');
 	}
@@ -335,6 +335,107 @@ export async function sharedActivate(context: ExtensionContext, slangHandler: Sl
 	context.subscriptions.push(commands.registerCommand('slang.playgroundDocumentation', async () => {
 		const mdFile = vscode.Uri.joinPath(context.extensionUri, 'media', 'playgroundDocumentation.md')
 		await vscode.commands.executeCommand('markdown.showPreviewToSide', mdFile);
+	}));
+
+	// Debug Commands for testing different logging mechanisms
+	context.subscriptions.push(commands.registerCommand('slang.debug.testNotification', async () => {
+		// Test showing notifications in client's VSCode
+		vscode.window.showInformationMessage('Slang Debug: Information notification test');
+		vscode.window.showWarningMessage('Slang Debug: Warning notification test');
+		vscode.window.showErrorMessage('Slang Debug: Error notification test');
+		
+		// Test notification with options
+		const choice = await vscode.window.showInformationMessage(
+			'Slang Debug: Interactive notification test',
+			'Option 1',
+			'Option 2'
+		);
+		if (choice) {
+			vscode.window.showInformationMessage(`You selected: ${choice}`);
+		}
+	}));
+
+	context.subscriptions.push(commands.registerCommand('slang.debug.testOutputChannel', async () => {
+		// Test writing to client's output channel
+		const logChannel = getSlangLogChannel();
+		
+		logChannel.appendLine('=== Slang Debug: Output Channel Test ===');
+		logChannel.appendLine(`Timestamp: ${new Date().toISOString()}`);
+		logChannel.appendLine('Testing different log levels:');
+		logChannel.appendLine('  [INFO] This is an informational message');
+		logChannel.appendLine('  [WARN] This is a warning message');
+		logChannel.appendLine('  [ERROR] This is an error message');
+		logChannel.appendLine('');
+		logChannel.append('Testing append without newline... ');
+		logChannel.appendLine('completed!');
+		logChannel.appendLine('=== End of Output Channel Test ===\n');
+		
+		// Show the output channel
+		logChannel.show(true);
+		
+		vscode.window.showInformationMessage('Output written to Slang Extension Log channel');
+	}));
+
+	context.subscriptions.push(commands.registerCommand('slang.debug.testConsoleLog', async () => {
+		// Test logging to developer tools console
+		console.log('=== Slang Debug: Console Log Test ===');
+		console.log('Standard log message', { timestamp: new Date().toISOString() });
+		console.info('Info message with data:', { test: true, value: 42 });
+		console.warn('Warning message:', 'This is a warning from Slang extension');
+		console.error('Error message:', new Error('Test error from Slang extension'));
+		
+		// Test console grouping
+		console.group('Slang Debug Group');
+		console.log('Message inside group');
+		console.log('Another message in group');
+		console.groupEnd();
+		
+		// Test console table
+		console.table([
+			{ feature: 'Notifications', status: 'working' },
+			{ feature: 'Output Channel', status: 'working' },
+			{ feature: 'Console Log', status: 'testing' }
+		]);
+		
+		console.log('=== End of Console Log Test ===');
+		
+		vscode.window.showInformationMessage('Logs written to Developer Tools Console (Help > Toggle Developer Tools)');
+	}));
+
+	context.subscriptions.push(commands.registerCommand('slang.debug.testClientCommunication', async () => {
+		// Run all debug tests
+		vscode.window.showInformationMessage('Running all Slang debug tests...');
+		
+		// Test 1: Notifications
+		await vscode.commands.executeCommand('slang.debug.testNotification');
+		
+		// Small delay between tests
+		await new Promise(resolve => setTimeout(resolve, 500));
+		
+		// Test 2: Output Channel
+		await vscode.commands.executeCommand('slang.debug.testOutputChannel');
+		
+		// Test 3: Console Log
+		await vscode.commands.executeCommand('slang.debug.testConsoleLog');
+		
+		vscode.window.showInformationMessage('All Slang debug tests completed!');
+	}));
+
+	context.subscriptions.push(commands.registerCommand('slang.debug.testServerCommunication', async () => {
+		// Test server-to-client communication
+		vscode.window.showInformationMessage('Testing server-to-client communication...');
+		
+		// Send test command to server
+		if ('sendMessageToWorker' in globalThis && typeof (globalThis as any).sendMessageToWorker === 'function') {
+			(globalThis as any).sendMessageToWorker({ type: 'slang/debug/testServerLogs' });
+			
+			const logChannel = getSlangLogChannel();
+			logChannel.appendLine('=== Client: Sent test request to server ===');
+			logChannel.appendLine('Watch for server messages below...');
+			logChannel.show(true);
+		} else {
+			vscode.window.showErrorMessage('Server communication test only available in native extension mode');
+		}
 	}));
 }
 

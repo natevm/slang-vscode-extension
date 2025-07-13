@@ -10,11 +10,11 @@ import {
 	TransportKind
 } from 'vscode-languageclient/node';
 import { Worker } from 'worker_threads';
-import { CompileRequest, EntrypointsRequest, EntrypointsResult, Result, ServerInitializationOptions, Shader, WorkerRequest } from '../../shared/playgroundInterface';
+import { CompileRequest, EntrypointsRequest, EntrypointsResult, Result, ServerInitializationOptions, Shader, WorkerRequest, ServerMessage } from '../../shared/playgroundInterface';
 import { PlaygroundImportQuickFixProvider } from './native/playgroundQuickFix';
 import { getSlangdLocation } from './native/slangd';
 import { SlangSynthesizedCodeProvider } from './native/synth_doc_provider';
-import { getSlangFilesWithContents, sharedActivate } from './sharedClient';
+import { getSlangFilesWithContents, sharedActivate, getSlangLogChannel } from './sharedClient';
 
 let client: LanguageClient;
 let worker: Worker;
@@ -134,6 +134,55 @@ export async function activate(context: ExtensionContext) {
 	worker = new Worker(path.join(context.extensionPath, 'server', 'dist', 'nativeServerMain.js'), {
 		workerData: initializationOptions
 	});
+	
+	// Set up general message handler for server messages
+	worker.on('message', (message: any) => {
+		// Check if it's a server message (log or notification)
+		if (message && typeof message === 'object' && 'type' in message) {
+			const serverMessage = message as ServerMessage;
+			
+			if (serverMessage.type === 'log') {
+				const logChannel = getSlangLogChannel();
+				const prefix = `[${serverMessage.level.toUpperCase()}]`;
+				logChannel.appendLine(`${prefix} ${serverMessage.message}`);
+				if (serverMessage.details) {
+					logChannel.appendLine(`  Details: ${serverMessage.details}`);
+				}
+				
+				// Show channel for errors
+				if (serverMessage.level === 'error') {
+					logChannel.show(true);
+				}
+			} else if (serverMessage.type === 'notification') {
+				const showNotification = 
+					serverMessage.level === 'info' ? vscode.window.showInformationMessage :
+					serverMessage.level === 'warning' ? vscode.window.showWarningMessage :
+					vscode.window.showErrorMessage;
+				
+				if (serverMessage.actions && serverMessage.actions.length > 0) {
+					showNotification(serverMessage.message, ...serverMessage.actions).then(action => {
+						if (action) {
+							const logChannel = getSlangLogChannel();
+							logChannel.appendLine(`User selected action: ${action}`);
+							
+							// Send action response back to server if notification has an ID
+							if (serverMessage.notificationId) {
+								sendMessageToWorker({
+									type: 'slang/actionResponse',
+									notificationId: serverMessage.notificationId,
+									action: action
+								});
+							}
+						}
+					});
+				} else {
+					showNotification(serverMessage.message);
+				}
+			}
+		}
+		// Other messages are handled by specific handlers (compile results, etc.)
+	});
+	
 	sendMessageToWorker({ type: 'Initialize', initializationOptions: initializationOptions });
 
 	// Listen for document open/change events
@@ -142,6 +191,9 @@ export async function activate(context: ExtensionContext) {
 		vscode.workspace.onDidChangeTextDocument(sendDidChangeTextDocument)
 	);
 
+	// Make sendMessageToWorker available globally for debug commands
+	(globalThis as any).sendMessageToWorker = sendMessageToWorker;
+	
 	sharedActivate(context, {
 		compileShader: function (parameter: CompileRequest): Promise<Result<Shader>> {
 			sendMessageToWorker({ type: 'slang/compile', ...parameter });

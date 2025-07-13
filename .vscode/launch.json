@@ -29,7 +29,7 @@
 				"${workspaceFolder}/client/dist/**/*.js",
 				"${workspaceFolder}/server/dist/**/*.js"
 			],
-			"preLaunchTask": "npm: watch"
+			"preLaunchTask": "npm: compile"
 		}
 	]
 }
