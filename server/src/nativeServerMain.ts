@@ -129,7 +129,48 @@ async function DidChangeTextDocument(params: WorkerRequest & { type: 'DidChangeT
 }
 
 async function slangCompile(params: WorkerRequest & { type: 'slang/compile' }) {
-    parentPort!.postMessage(await compiler.compile(params, initializationOptions.workspaceUris, spirvTools));
+    const result = await compiler.compile(params, initializationOptions.workspaceUris, spirvTools);
+    
+    // Check if the error is due to missing playground import
+    if (!result.succ && result.message.includes('Unable to load user module')) {
+        // Check if the error log mentions undefined print/imageMain functions
+        const errorLog = result.log || '';
+        const sourceCode = params.sourceCode;
+        
+        // Check if the code uses print() or other playground functions without importing playground
+        const usesPrint = sourceCode.includes('print(') || sourceCode.includes('print ');
+        const hasPlaygroundImport = sourceCode.includes('import playground');
+        
+        if (usesPrint && !hasPlaygroundImport && (errorLog.includes('undefined identifier \'print\'') || errorLog.includes('print'))) {
+            // Send a friendly notification with action to add import
+            sendNotificationWithCallback(
+                'error',
+                'Missing playground import. The print() function requires "import playground;" at the top of your file.',
+                ['Add Playground Import', 'Cancel'],
+                async (action) => {
+                    if (action === 'Add Playground Import') {
+                        // Send a special message to the client to add the import
+                        parentPort!.postMessage({
+                            type: 'addPlaygroundImport',
+                            filePath: params.shaderPath
+                        });
+                    }
+                }
+            );
+            
+            // Send the error result with notification handled flag
+            const modifiedResult = {
+                succ: false,
+                message: 'The print() function requires "import playground;" at the top of your file.',
+                log: 'Add "import playground;" to use playground functions like print().\n\nOriginal error:\n' + errorLog,
+                notificationHandled: true
+            };
+            parentPort!.postMessage(modifiedResult);
+            return; // Important: return here to avoid sending the result twice
+        }
+    }
+    
+    parentPort!.postMessage(result);
 }
 
 async function slangEntrypoints(params: EntrypointsRequest) {

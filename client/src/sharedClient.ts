@@ -97,7 +97,10 @@ export async function sharedActivate(context: ExtensionContext, slangHandler: Sl
 			});
 			if (compileResult.succ == false) {
 				const logChannel = getSlangLogChannel();
-				vscode.window.showErrorMessage(compileResult.message);
+				// Only show error message if it wasn't already handled by a notification
+				if (!compileResult.notificationHandled) {
+					vscode.window.showErrorMessage(compileResult.message);
+				}
 				if (compileResult.log) {
 					logChannel.appendLine(compileResult.log);
 					logChannel.show(true);

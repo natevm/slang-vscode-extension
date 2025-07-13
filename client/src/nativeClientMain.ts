@@ -178,6 +178,9 @@ export async function activate(context: ExtensionContext) {
 				} else {
 					showNotification(serverMessage.message);
 				}
+			} else if (serverMessage.type === 'addPlaygroundImport') {
+				// Handle adding playground import to file
+				handleAddPlaygroundImport(serverMessage.filePath);
 			}
 		}
 		// Other messages are handled by specific handlers (compile results, etc.)
@@ -198,24 +201,77 @@ export async function activate(context: ExtensionContext) {
 		compileShader: function (parameter: CompileRequest): Promise<Result<Shader>> {
 			sendMessageToWorker({ type: 'slang/compile', ...parameter });
 			return new Promise((resolve, reject) => {
-				worker.once('message', (result: Result<Shader>) => {
-					if (result.succ == true) {
-						resolve(result);
-					} else {
-						reject(new Error(result.message));
+				const handler = (message: any) => {
+					// Check if this is actually a compile result (not a notification or other message)
+					if (message && typeof message === 'object' && 'succ' in message) {
+						worker.off('message', handler); // Remove this specific handler
+						resolve(message as Result<Shader>);
 					}
-				});
+					// If it's not a compile result, keep listening
+				};
+				worker.on('message', handler);
 			});
 		},
 		entrypoints: function (parameter: EntrypointsRequest): Promise<EntrypointsResult> {
 			sendMessageToWorker({ type: 'slang/entrypoints', ...parameter });
 			return new Promise((resolve, reject) => {
-				worker.once('message', (result: EntrypointsResult) => {
-					resolve(result);
-				});
+				const handler = (message: any) => {
+					// Check if this is actually an entrypoints result (array of strings)
+					if (Array.isArray(message)) {
+						worker.off('message', handler);
+						resolve(message as EntrypointsResult);
+					}
+					// If it's not an entrypoints result, keep listening
+				};
+				worker.on('message', handler);
 			});
 		}
 	});
+}
+
+async function handleAddPlaygroundImport(filePath: string) {
+	try {
+		// Convert the file path to a VS Code URI
+		const uri = vscode.Uri.parse(filePath);
+		
+		// Open the document
+		const document = await vscode.workspace.openTextDocument(uri);
+		
+		// Get the current content
+		const currentContent = document.getText();
+		
+		// Check if playground import already exists (defensive check)
+		if (currentContent.includes('import playground')) {
+			vscode.window.showInformationMessage('Playground import already exists in the file');
+			return;
+		}
+		
+		// Create a WorkspaceEdit to add the import
+		const edit = new vscode.WorkspaceEdit();
+		
+		// Add "import playground;\n" at the beginning of the file
+		const position = new vscode.Position(0, 0);
+		edit.insert(uri, position, 'import playground;\n\n');
+		
+		// Apply the edit
+		const success = await vscode.workspace.applyEdit(edit);
+		
+		if (success) {
+			vscode.window.showInformationMessage('Added playground import successfully');
+			
+			// Optionally, save the document
+			await document.save();
+			
+			// Re-run the playground command after adding the import
+			vscode.commands.executeCommand('slang.playgroundRun');
+		} else {
+			vscode.window.showErrorMessage('Failed to add playground import');
+		}
+	} catch (error) {
+		const logChannel = getSlangLogChannel();
+		logChannel.appendLine(`Error adding playground import: ${error}`);
+		vscode.window.showErrorMessage(`Failed to add playground import: ${error}`);
+	}
 }
 
 export function sendMessageToWorker(message: WorkerRequest) {

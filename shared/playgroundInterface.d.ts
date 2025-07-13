@@ -101,7 +101,7 @@ export type Shader = {
 
 export type Result<T> =
 	| { succ: true; result: T }
-	| { succ: false; message: string; log?: string };
+	| { succ: false; message: string; log?: string; notificationHandled?: boolean };
 
 export type UniformController = { buffer_offset: number } & ({
 	type: "SLIDER",
@@ -262,4 +262,7 @@ export type ServerMessage = {
 	message: string,
 	actions?: string[],
 	notificationId?: string  // Optional ID to track which notification was responded to
+} | {
+	type: 'addPlaygroundImport',
+	filePath: string
 };

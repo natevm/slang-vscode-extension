@@ -489,6 +489,14 @@ export class SlangCompiler {
 			}
 
 			let reflectionJson: ReflectionJSON = linkedProgram.getLayout(0)?.toJsonObject();
+			if (!reflectionJson) {
+				let error = this.slangWasmModule.getLastError();
+				return {
+					succ: false,
+					message: `Failed to get reflection data: ${error.type} error`,
+					log: error.type + " error: " + error.message
+				};
+			}
 			let hashedStrings: HashedStringData = reflectionJson.hashedStrings ? Object.fromEntries(Object.entries(reflectionJson.hashedStrings).map(entry => entry.reverse())) : {};
 
 			let bindings: Bindings = request.noWebGPU ? {} : this.getResourceBindings(reflectionJson);
